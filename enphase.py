@@ -8,7 +8,7 @@ import glob
 import re
 import pandas as pd
 import numpy as np
-import solar.python.angles as a
+import angles as a
 
 def version():
   return os.environ['ENPHASE_API_VERSION']
