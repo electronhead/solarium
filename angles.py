@@ -153,6 +153,9 @@ def annapolis():
 def arlington():
   return compute_observer('Arlington, Oregon', 285)
 
+def steinberg():
+  return compute_observer('7740 SW 50TH AVE, Portland, Oregon')
+
 
 
 

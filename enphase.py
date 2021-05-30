@@ -190,8 +190,7 @@ def select_rows(raw_rows, increment=5):
 # compute_data_frame
 # ========================================
 
-def compute_data_frame(complete_days=False, start_date=None, increment=5):
-  print(save_to_files(complete_days=complete_days, start_date=start_date))
+def compute_data_frame(increment=5):
   raw_rows = retrieve_rows_from_files()
   rows = select_rows(raw_rows, increment=increment)
   columns = [d, t, dt, w, wh, f, b, p]
