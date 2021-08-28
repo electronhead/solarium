@@ -233,11 +233,11 @@ def by_time(data, start, stop):
   stop = make_time(stop)
   return data.loc[(data[t]>=start) & (data[t]<=stop)]
 
-def online_date():
+def pge_online_date():
   return date(2020,3,4)
 
 def today():
-  return datetime.now().date()
+  return a.today()
 
 def yesterday():
   return today() + timedelta(days=-1)
@@ -276,15 +276,15 @@ combined = 'combined_angle'
 # transformation
 # ========================================
 
-def stats_by_time(data, column=wh, start_date=online_date(), stop_date=today()):
-  start_date = max([start_date, online_date()])
+def stats_by_time(data, column=wh, start_date=pge_online_date(), stop_date=today()):
+  start_date = max([start_date, pge_online_date()])
   stop_date = min([stop_date, today()])
   selected = by_date(data, start_date, stop_date)
   grouped = selected.groupby(t)
   return grouped[column].agg([np.min,np.mean,np.max])
 
-def pivot_by_date_time(data, values=w, start_date=online_date(), stop_date=today(), start_time=start_time(), stop_time=stop_time()):
-  start_date = max([start_date, online_date()])
+def pivot_by_date_time(data, values=w, start_date=pge_online_date(), stop_date=today(), start_time=start_time(), stop_time=stop_time()):
+  start_date = max([start_date, pge_online_date()])
   stop_date = min([stop_date, today()])
   selected = by_date(data, start_date, stop_date)
   selected = by_time(selected, start_time, stop_time)

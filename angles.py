@@ -33,10 +33,24 @@ import functools as ft
 hours_adjustment = 7 # adjust for daylight savings
 adjusted_datetime = lambda d, t: datetime.combine(d, t) + timedelta(hours=hours_adjustment)
 test_altitude = lambda angle, desired_angle: abs(angle - desired_angle) < 0.2
-test_azimuth = lambda angle, desired_angle: abs(angle - desired_angle) < 0.2
+test_azimuth = lambda angle, desired_angle: abs(angle - desired_angle) < 0.3
 round_angle = lambda angle: int(round(angle, 0))
 degree_symbol = "\xb0" #u"\N{DEGREE SIGN}".encode('utf-8') # latest update to xcode required .encode(blah)
 format_angle = lambda angle: ("{0}{1}").format(round_angle(angle), degree_symbol)
+
+def today():
+    return datetime.now().date()
+def current_year():
+    return today().year
+def vernal_equinox(year=current_year()):
+    return date(year, 3, 21)
+def summer_solstice(year=current_year()):
+    return date(year, 6, 21)
+def autumnal_equinox(year=current_year()):
+    return date(year, 9, 21)
+def winter_solstice(year=current_year()):
+    return date(year, 12, 21)
+
 
 def email_address():
   return 'beaver@electronhead.com'
@@ -60,7 +74,9 @@ def compute_altitude_azimuth_radians(o, d, t):
 
 
 
-
+# the model here is an inclined surface. The angle of sunlight on the surface
+# depends on the solar altitude, solar azimuth, the surface incline, and the rotation
+# of the surface relative to due south (e.g. - south-facing 0, west-facing 90)
 def compute_surface_incident_angle(altitude, azimuth, incline, rotation):
   if altitude < 0:
     return 0
@@ -142,21 +158,9 @@ def compute_observer(address, elevation=100):
   return o
 
 def portland():
-  return compute_observer('2827 SE 49th Avenue, Portland, Oregon', 100)
+  return compute_observer('Portland, Oregon', 100)
 
-def petrolia():
-  return compute_observer('Petrolia, California', 121)
-
-def annapolis():
-  return compute_observer('Annapolis, California', 771)
-
-def arlington():
-  return compute_observer('Arlington, Oregon', 285)
-
-def steinberg():
-  return compute_observer('7740 SW 50TH AVE, Portland, Oregon')
-
-
+observer = portland
 
 
 
