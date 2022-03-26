@@ -53,7 +53,13 @@ def compute_next_date():
 
 # return /stats response for a provided date
 def request_stats(adate):
-  cmd = Template("https://api.enphaseenergy.com/api/$version/systems/$system/stats").substitute({'version':version(), 'system':system()})
+  cmd = Template("https://api.enphaseenergy.com/api/$version/systems/$system/stats").substitute({'version':'v2', 'system':system()})
+  start_at = int(_time.mktime(adate.timetuple()))
+  payload = {'datetime_format':'iso8601', 'key':key(), 'user_id':userid(), 'start_at':start_at}
+  return requests.get(cmd, payload)
+
+def request_stats_v4(adate):
+  cmd = Template("https://api.enphaseenergy.com/api/$version/systems/$system/stats").substitute({'version':'v4', 'system':system()})
   start_at = int(_time.mktime(adate.timetuple()))
   payload = {'datetime_format':'iso8601', 'key':key(), 'user_id':userid(), 'start_at':start_at}
   return requests.get(cmd, payload)
