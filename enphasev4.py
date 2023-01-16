@@ -33,7 +33,7 @@ def client_secret():
     return os.environ['ENPHASE_V4_CLIENT_SECRET']
 
 def encoded_client_secret():
-  id_secret = '{0}:{1}'.format(client_id(),client_secret())
+  id_secret = f"{client_id()}:{client_secret()}"
   encoded_bytes = base64.b64encode(id_secret.encode("utf-8"))
   return str(encoded_bytes, "utf-8")
 
@@ -58,40 +58,60 @@ def print_environ():
 
 # request tokens (access and refresh tokens)
 def request_tokens():
-    cmd = 'https://api.enphaseenergy.com/oauth/token'
-    headers = {
-        'Authorization': encoded_client_secret()
-    }
-    params = {
-        'grant_type': 'authorization_code',
-        'redirect_uri': redirect_uri(),
-        'code': client_code()
-    }
-    return requests.get(
-        cmd, 
-        headers=headers, 
-        params=params
-    )
+  cmd = 'https://api.enphaseenergy.com/oauth/token'
+  headers = {
+    'Authorization': f"BASIC {encoded_client_secret()}"
+  }
+  params = {
+    'grant_type': 'authorization_code',
+    'redirect_uri': redirect_uri(),
+    'code': client_code()
+  }
+  payload = ''
+  print('request_tokens...\n')
+  print('cmd\n', cmd)
+  print('headers\n', headers)
+  print('params\n', params)
+  print('data\n', payload)
+  return requests.get(
+    cmd, 
+    headers = headers, 
+    params = params,
+    data = payload
+  )
     
-# return /stats response for a provided date
+# request stats for a provided date
 # rgm == revenue-grade meters
 def request_stats(adate):
   token_response = request_tokens()
   token_data = token_response.json()
   if token_response.status_code != requests.codes.ok:
-    print("TOKEN FAILURE:", token_data)
+    print("\nTOKEN RESPONSE:", token_response)
+    print("\nTOKEN JSON:", token_data)
     return token_response
   cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/rgm_stats"
-  params = {
-    'key': api_key()
-  }
   headers = {
     'Authorization': f"Bearer {token_data['access_token']}"
   }
+  params = {
+    'key': api_key()
+  }
   payload = {
     'start_at': int(_time.mktime(adate.timetuple()))
-    }
-  return requests.get(cmd, params = params, headers = headers, payload = payload)
+  }
+  print('request_stats...')
+  print({
+    'cmd': cmd,
+    'headers': headers,
+    'params': params,
+    'data': payload
+  })
+  return requests.get(
+    cmd, 
+    params = params, 
+    headers = headers, 
+    data = payload
+  )
 
 
 # ========================================
@@ -121,7 +141,7 @@ def save_to_file(adate):
   response = request_stats(adate)
   stats_data = response.json()
   if response.status_code != requests.codes.ok:
-    print("STATS FAILURE:", stats_data)
+    print("\nSTATS FAILURE:", stats_data)
     return False
   else:
     rows = sorted(convert_intervals_to_rows(stats_data), key = lambda row: row[0])

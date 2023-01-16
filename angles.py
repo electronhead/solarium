@@ -32,7 +32,7 @@ import functools as ft
 
 hours_adjustment = 7 # adjust for daylight savings
 adjusted_datetime = lambda d, t: datetime.combine(d, t) + timedelta(hours=hours_adjustment)
-test_altitude = lambda angle, desired_angle: abs(angle - desired_angle) < 0.2
+test_altitude = lambda angle, desired_angle: abs(angle - desired_angle) < 0.3
 test_azimuth = lambda angle, desired_angle: abs(angle - desired_angle) < 0.3
 round_angle = lambda angle: int(round(angle, 0))
 degree_symbol = "\xb0" #u"\N{DEGREE SIGN}".encode('utf-8') # latest update to xcode required .encode(blah)
@@ -179,7 +179,7 @@ def compute_table(o, date_1, date_2, time_1, time_2):
     altitude, azimuth = compute_altitude_azimuth(o,d,t)
     alt, azi = ft.partial(test_altitude, altitude), ft.partial(test_azimuth, azimuth)
     if alt(0) or azi(90) or azi(135) or azi(180) or azi(225) or azi(270):
-      rez0 = d.strftime("%m-%d")
+      rez0 = d.strftime("%Y-%m-%d")
       rez1 = t.strftime("%H:%M")
       if alt(0):
         rez2 = "RISE" if azimuth < 180 else "SET"

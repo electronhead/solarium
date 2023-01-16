@@ -9,12 +9,14 @@ import re
 import pandas as pd
 import numpy as np
 import angles as a
-
-def version():
-  return os.environ['ENPHASE_API_VERSION']
+import base64
 
 def system():
   return os.environ['ENPHASE_SYSTEM_ID']
+
+# v2
+def version():
+  return os.environ['ENPHASE_API_VERSION']
 
 def userid():
   return os.environ['ENPHASE_APP_USER_ID']
@@ -31,6 +33,27 @@ def print_environ():
   print('ENPHASE_APP_USER_ID:', userid())
   print('ENPHASE_APP_KEY:', key())
   print('ENPHASE_STATS_PATH:', path())
+
+# v4
+def v4_client_id():
+  os.environ['ENPHASE_V4_CLIENT_ID']
+
+def v4_client_secret():
+  os.environ['ENPHASE_V4_CLIENT_SECRET']
+
+def v4_version():
+  return os.environ['ENPHASE_V4_API_VERSION']
+
+def v4_api_key():
+  return os.environ['ENPHASE_V4_API_KEY']
+
+def v4_encoded_client_secret():
+  id_secret = '{0}:{1}'.format(v4_client_id(),v4_client_secret())
+  encoded_bytes = base64.b64encode(id_secret, "utf-8")
+  return str(encoded_bytes, "utf-8")
+
+def v4_stats_path():
+  return os.environ['ENPHASE_V4_STATS_PATH']
 
 # ========================================
 # from enphase to files
@@ -58,11 +81,33 @@ def request_stats(adate):
   payload = {'datetime_format':'iso8601', 'key':key(), 'user_id':userid(), 'start_at':start_at}
   return requests.get(cmd, payload)
 
-def request_stats_v4(adate):
+def request_stats_v4_orig(adate):
   cmd = Template("https://api.enphaseenergy.com/api/$version/systems/$system/stats").substitute({'version':'v4', 'system':system()})
   start_at = int(_time.mktime(adate.timetuple()))
   payload = {'datetime_format':'iso8601', 'key':key(), 'user_id':userid(), 'start_at':start_at}
   return requests.get(cmd, payload)
+
+# request tokens
+def request_tokens():
+    cmd = 'https://api.enphaseenergy.com/oauth/token'
+    headers = {'Authorization': 'Basic YmQ4Y2Q0ODkxYmI4YTEwNjUxMDM4OTdkODMzYjdmOGE6NGFhNWIyYjRhNWM5YzYwNDk3NDNiOTY1ZjA5ZDJmMDQ='}
+    params = {
+        'grant_type': 'authorization_code',
+        'redirect_uri': 'https://api.enphaseenergy.com/oauth/redirect_uri',
+        'code': 'CPolri'
+    }
+    response = requests.get(cmd, headers=headers, params=params)
+    return response
+# revenue-grade meters
+def request_stats_v4(adate):
+  url = "https://api.enphaseenergy.com/api/{0}}/systems/{1}}/rgm_stats".format(v4_version(), system())
+  params = {""}
+  cmd = Template("https://api.enphaseenergy.com/api/$version/systems/$system/rgm_stats").substitute({'version':'v4', 'system':system()})
+  start_at = int(_time.mktime(adate.timetuple()))
+  payload = {}
+  return requests.get(cmd, payload)
+
+
 
 def convert_intervals_to_rows(json):
   return [[interval['end_at'], interval['powr'], interval['enwh']] for interval in json['intervals']]
