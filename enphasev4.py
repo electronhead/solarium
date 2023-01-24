@@ -38,7 +38,8 @@ def encoded_client_secret():
   return str(encoded_bytes, "utf-8")
 
 def client_code():
-    return os.environ['ENPHASE_V4_CLIENT_CODE']
+  return 'd512A4'
+  #  return os.environ['ENPHASE_V4_CLIENT_CODE']
 
 def print_environ():
   print('ENPHASE_SYSTEM_ID:', system_id())
@@ -60,44 +61,44 @@ def print_environ():
 def request_tokens():
   cmd = 'https://api.enphaseenergy.com/oauth/token'
   headers = {
-    'Authorization': f"BASIC {encoded_client_secret()}"
+    'Authorization': f"Basic {encoded_client_secret()}"
   }
   params = {
     'grant_type': 'authorization_code',
     'redirect_uri': redirect_uri(),
     'code': client_code()
   }
-  payload = ''
-  print('request_tokens...\n')
-  print('cmd\n', cmd)
-  print('headers\n', headers)
-  print('params\n', params)
-  print('data\n', payload)
-  return requests.get(
+  print('request data...\n')
+  print({
+    'cmd': cmd,
+    'headers': headers,
+    'params': params
+  })
+  response = requests.post(
     cmd, 
     headers = headers, 
-    params = params,
-    data = payload
+    params = params
   )
+  print('\nresponse data...\n')
+  print({
+    'response': response,
+    'response_json': response.json()
+  })
+  return response
     
 # request stats for a provided date
 # rgm == revenue-grade meters
-def request_stats(adate):
-  token_response = request_tokens()
-  token_data = token_response.json()
-  if token_response.status_code != requests.codes.ok:
-    print("\nTOKEN RESPONSE:", token_response)
-    print("\nTOKEN JSON:", token_data)
-    return token_response
+def request_stats(adate, access_token):
   cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/rgm_stats"
   headers = {
-    'Authorization': f"Bearer {token_data['access_token']}"
+    'Authorization': f"Bearer {access_token}"
   }
   params = {
     'key': api_key()
   }
   payload = {
-    'start_at': int(_time.mktime(adate.timetuple()))
+    'start_at': int(_time.mktime(adate.timetuple())),
+    'end_at':  int(_time.mktime((adate + timedelta(days=1)).timetuple()))
   }
   print('request_stats...')
   print({
@@ -137,8 +138,8 @@ def convert_intervals_to_rows(json):
   return [[interval['end_at'], interval['devices_reporting'], interval['wh_del']] for interval in json['intervals']]
 
 # save to a csv file
-def save_to_file(adate):
-  response = request_stats(adate)
+def save_to_file(adate, access_token):
+  response = request_stats(adate, access_token)
   stats_data = response.json()
   if response.status_code != requests.codes.ok:
     print("\nSTATS FAILURE:", stats_data)
@@ -146,12 +147,13 @@ def save_to_file(adate):
   else:
     rows = sorted(convert_intervals_to_rows(stats_data), key = lambda row: row[0])
     adate_str = adate.strftime("%Y-%m-%d")
-    new_file_name = stats_path() + Template('stats_$d.csv').substitute({'d':adate_str})
+    #new_file_name = stats_path() + Template('stats_$d.csv').substitute({'d':adate_str})
+    new_file_name = stats_path() + f"stats_{adate_str}.csv"
     with open(new_file_name, 'w') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
       for row in rows:
         writer.writerow(row)
-    print(new_file_name)
+    #print(new_file_name)
     print("SUCCESS:", len(rows), "rows written to ", new_file_name)
     return True
 
@@ -160,14 +162,22 @@ def save_to_file(adate):
 # complete_days:
 #     True: ignore data for today, which may not represent the whole day
 #     False: save today's data
-def save_to_files(complete_days=True, start_date=None):  
+def save_to_files(complete_days=True, start_date=None):
+  token_response = request_tokens()
+  token_data = token_response.json()
+  if token_response.status_code != requests.codes.ok:
+    print("\nTOKEN RESPONSE:", token_response)
+    print("\nTOKEN JSON:", token_data)
+    return token_response
+  access_token = token_data['access_token']
+
   dates_processed = 0
   next_date = compute_next_date()
   last_date = None
   if start_date != None:
     next_date = min([start_date, next_date])
   while next_date < (datetime.now().date() + timedelta(days=0 if complete_days else 1)):
-    if save_to_file(next_date):
+    if save_to_file(next_date, access_token):
       last_date = next_date
       _time.sleep(6.1) # enphase API no cost plan has a max of 10 requests per minute
       next_date = next_date + timedelta(days=1)
@@ -253,7 +263,8 @@ def retrieve_rows_from_files():
 # enphase produces data in 5 minute increments
 # transform results produced by retrieve_from_files with this function
 def select_rows(raw_rows, increment=5):
-  assert((0 == increment % 5) & (increment > 0) & (increment <= 61)), Template('invalid increment: $increment').substitute({"increment":increment})
+  #assert((0 == increment % 5) & (increment > 0) & (increment <= 61)), Template('invalid increment: $increment').substitute({"increment":increment})
+  assert((0 == increment % 5) & (increment > 0) & (increment <= 61)), f"invalid increment: {increment}"
   if increment != 5:
     row_test = lambda row: 0 == row[2].minute % increment
     rows = [row for row in raw_rows if row_test(row)]

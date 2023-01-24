@@ -127,7 +127,6 @@ def save_to_file(adate):
       writer = csv.writer(csvfile, delimiter=',')
       for row in rows:
         writer.writerow(row)
-    print(new_file_name)
     print("SUCCESS:", len(rows), "rows written to ", new_file_name)
     return True
 
