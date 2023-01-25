@@ -108,6 +108,8 @@ def request_stats(adate, access_token):
     headers = headers, 
     data = payload
   )
+  # for the last day, end_at could after the current time. Seems to cause
+  # a problem (422).
   if response.status_code == 422: # try again without end_at
     payload = {
       'start_at': start_at
