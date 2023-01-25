@@ -30,7 +30,7 @@ def client_id():
   return os.environ['ENPHASE_V4_CLIENT_ID']
 
 def client_secret():
-    return os.environ['ENPHASE_V4_CLIENT_SECRET']
+  return os.environ['ENPHASE_V4_CLIENT_SECRET']
 
 def encoded_client_secret():
   id_secret = f"{client_id()}:{client_secret()}"
@@ -38,7 +38,7 @@ def encoded_client_secret():
   return str(encoded_bytes, "utf-8")
 
 def client_code():
-  return 'd512A4'
+  return 'ijhAYs'
   #  return os.environ['ENPHASE_V4_CLIENT_CODE']
 
 def print_environ():
@@ -96,10 +96,28 @@ def request_stats(adate, access_token):
   params = {
     'key': api_key()
   }
+  start_at = int(_time.mktime(adate.timetuple()))
+  end_at = int(_time.mktime((adate + timedelta(days=1)).timetuple()))
   payload = {
-    'start_at': int(_time.mktime(adate.timetuple())),
-    'end_at':  int(_time.mktime((adate + timedelta(days=1)).timetuple()))
+    'start_at': start_at,
+    'end_at':  end_at
   }
+  response = requests.get(
+    cmd, 
+    params = params, 
+    headers = headers, 
+    data = payload
+  )
+  if response.status_code == 422: # try again without end_at
+    payload = {
+      'start_at': start_at
+    }
+    response = requests.get(
+      cmd, 
+      params = params, 
+      headers = headers, 
+      data = payload
+    )
   print('request_stats...')
   print({
     'cmd': cmd,
@@ -107,12 +125,8 @@ def request_stats(adate, access_token):
     'params': params,
     'data': payload
   })
-  return requests.get(
-    cmd, 
-    params = params, 
-    headers = headers, 
-    data = payload
-  )
+  return response
+    
 
 
 # ========================================
@@ -278,7 +292,7 @@ def select_rows(raw_rows, increment=5):
 # compute_data_frame
 # ========================================
 
-def compute_data_frame(increment=5):
+def compute_data_frame(increment=15):
   raw_rows = retrieve_rows_from_files()
   rows = select_rows(raw_rows, increment=increment)
   columns = [d, t, dt, dc, wh, f, b, p]
