@@ -1,5 +1,4 @@
 import requests
-from string import Template
 from datetime import datetime, date, timedelta, timezone, time
 import time as _time
 import csv
@@ -38,7 +37,7 @@ def encoded_client_secret():
   return str(encoded_bytes, "utf-8")
 
 def client_code():
-  return 'ijhAYs'
+  return 'Qp8L7c'
   #  return os.environ['ENPHASE_V4_CLIENT_CODE']
 
 def print_environ():
@@ -68,39 +67,38 @@ def request_tokens():
     'redirect_uri': redirect_uri(),
     'code': client_code()
   }
-  print('request data...\n')
-  print({
-    'cmd': cmd,
-    'headers': headers,
-    'params': params
-  })
+  # print('token request data...\n')
+  # print({
+  #   'cmd': cmd,
+  #   'headers': headers,
+  #   'params': params
+  # })
   response = requests.post(
     cmd, 
     headers = headers, 
     params = params
   )
-  print('\nresponse data...\n')
-  print({
-    'response': response,
-    'response_json': response.json()
-  })
+  # print('\ntoken response data...\n')
+  # print({
+  #   'response': response,
+  #   'response_json': response.json()
+  # })
   return response
     
 # request stats for a provided date
 # rgm == revenue-grade meters
 def request_stats(adate, access_token):
-  cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/rgm_stats"
+  cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/telemetry/production_micro"
   headers = {
     'Authorization': f"Bearer {access_token}"
   }
   params = {
     'key': api_key()
   }
-  start_at = int(_time.mktime(adate.timetuple()))
-  end_at = int(_time.mktime((adate + timedelta(days=1)).timetuple()))
+  start_date_string = adate.strftime("%Y-%m-%d")
   payload = {
-    'start_at': start_at,
-    'end_at':  end_at
+    'start_date': start_date_string, # instead of start_at int
+    'granularity': 'day' # 'week', 'day', '15mins', '5mins'. Default is 'day'
   }
   response = requests.get(
     cmd, 
@@ -108,29 +106,13 @@ def request_stats(adate, access_token):
     headers = headers, 
     data = payload
   )
-  # for the last day, end_at could after the current time. Seems to cause
-  # a problem (422).
-  if response.status_code == 422: # try again without end_at
-    payload = {
-      'start_at': start_at
-    }
-    response = requests.get(
-      cmd, 
-      params = params, 
-      headers = headers, 
-      data = payload
-    )
-  print('request_stats...')
-  print({
-    'cmd': cmd,
-    'headers': headers,
-    'params': params,
-    'data': payload
-  })
+  # print('\nstats response data...\n')
+  # print({
+  #   'response': response,
+  #   'response_json': response.json()
+  # })
   return response
     
-
-
 # ========================================
 # from enphase to files
 #
@@ -150,8 +132,16 @@ def compute_next_date():
     last_date_str = date_strs[-1]
     return date.fromisoformat(last_date_str) + timedelta(days=1)
 
+def convert_interval_to_row(interval):
+  end_at_int = interval['end_at']
+  # https://stackoverflow.com/questions/2150739/iso-time-iso-8601-in-python
+  end_at_string = datetime.fromtimestamp(end_at_int).astimezone().replace(microsecond=0).isoformat()
+  powr = interval['powr']
+  enwh = interval['enwh']
+  return [end_at_string, powr, enwh]
+
 def convert_intervals_to_rows(json):
-  return [[interval['end_at'], interval['devices_reporting'], interval['wh_del']] for interval in json['intervals']]
+  return [convert_interval_to_row(interval) for interval in json['intervals']]
 
 # save to a csv file
 def save_to_file(adate, access_token):
@@ -163,7 +153,6 @@ def save_to_file(adate, access_token):
   else:
     rows = sorted(convert_intervals_to_rows(stats_data), key = lambda row: row[0])
     adate_str = adate.strftime("%Y-%m-%d")
-    #new_file_name = stats_path() + Template('stats_$d.csv').substitute({'d':adate_str})
     new_file_name = stats_path() + f"stats_{adate_str}.csv"
     with open(new_file_name, 'w') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
@@ -210,15 +199,14 @@ def save_to_files(complete_days=True, start_date=None):
 # ========================================
             
 def transform_row(row):  
-  date_time, device_count, watt_hours = row
+  date_time, watts, watt_hours = row
+  #dt = make_time(datetime.fromisoformat(date_time))
   dt = datetime.fromisoformat(date_time)
-  return [
-    dt.date(), # d
-    dt.timetz(), # t
-    datetime.fromisoformat(date_time), # dt
-    int(device_count), # dc
-    int(watt_hours) # wh
-    ]
+  d = dt.date()
+  t = dt.timetz()
+  w = int(watts)
+  wh = int(watt_hours)
+  return [d,t,dt,w,wh]
 
 def retrieve_rows_from_file(file):
   with open(file) as csvfile:
@@ -242,7 +230,7 @@ def update_rows(transformed_rows):
   # include forward totals
   date1 = date(1,1,1)
   for row in rows:
-    date2, t, date_time, device_count, watt_hours = row
+    date2, t, date_time, watts, watt_hours = row
     if date2 != date1:
       forward = watt_hours
       date1 = date2
@@ -253,7 +241,7 @@ def update_rows(transformed_rows):
   r = range(len(rows)-1,-1,-1)
   date1 = date(1,1,1)
   for i in r:
-    date2, t, date_time, device_count, watt_hours, forward = rows[i]
+    date2, t, date_time, watts, watt_hours, forward = rows[i]
     if date2 != date1:
       backward = 0
       date1 = date2
@@ -279,7 +267,6 @@ def retrieve_rows_from_files():
 # enphase produces data in 5 minute increments
 # transform results produced by retrieve_from_files with this function
 def select_rows(raw_rows, increment=5):
-  #assert((0 == increment % 5) & (increment > 0) & (increment <= 61)), Template('invalid increment: $increment').substitute({"increment":increment})
   assert((0 == increment % 5) & (increment > 0) & (increment <= 61)), f"invalid increment: {increment}"
   if increment != 5:
     row_test = lambda row: 0 == row[2].minute % increment
@@ -294,10 +281,10 @@ def select_rows(raw_rows, increment=5):
 # compute_data_frame
 # ========================================
 
-def compute_data_frame(increment=15):
+def compute_data_frame(increment=5):
   raw_rows = retrieve_rows_from_files()
   rows = select_rows(raw_rows, increment=increment)
-  columns = [d, t, dt, dc, wh, f, b, p]
+  columns = [d, t, dt, w, wh, f, b, p]
   data = pd.DataFrame(rows, columns = columns)
   return data
 
@@ -365,7 +352,7 @@ def stop_time():
 d = 'date'
 t = 'time'
 dt = 'date_time'
-dc = 'device_count'
+w = 'watts'
 wh = 'watt_hours'
 f = 'forward'
 b = 'backward'
@@ -387,7 +374,7 @@ def stats_by_time(data, column=wh, start_date=pge_online_date(), stop_date=today
   grouped = selected.groupby(t)
   return grouped[column].agg([np.min,np.mean,np.max])
 
-def pivot_by_date_time(data, values=dc, start_date=pge_online_date(), stop_date=today(), start_time=start_time(), stop_time=stop_time()):
+def pivot_by_date_time(data, values=w, start_date=pge_online_date(), stop_date=today(), start_time=start_time(), stop_time=stop_time()):
   start_date = max([start_date, pge_online_date()])
   stop_date = min([stop_date, today()])
   selected = by_date(data, start_date, stop_date)
