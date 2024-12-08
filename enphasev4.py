@@ -45,17 +45,9 @@ def encoded_client_secret():
   encoded_bytes = base64.b64encode(id_secret.encode("utf-8"))
   return str(encoded_bytes, "utf-8")
 
-def client_code():
-  with open(token_path() + 'access_token', 'r') as file:
-    return file.read().rstrip('\n')
-  #return 'WTLu7S'
-  #  return os.environ['ENPHASE_V4_CLIENT_CODE']
-
 def authorization_code():
   with open(token_path() + 'authorization_code', 'r') as file:
     return file.read().rstrip('\n')
-  #return 'WTLu7S'
-  #  return os.environ['ENPHASE_V4_CLIENT_CODE']
 
 def print_environ():
   print('ENPHASE_SYSTEM_ID:', system_id())
@@ -65,7 +57,7 @@ def print_environ():
   print('ENPHASE_CLIENT_ID', client_id())
   print('ENPHASE_CLIENT_SECRET', client_secret())
   print('ENPHASE_ENCODED_CLIENT_SECRET', encoded_client_secret())
-  print('ENPHASE_CLIENT_CODE', client_code())
+  print('ENPHASE_REDIRECT_URI', redirect_uri())
   
 def refresh_token_exists():
   refresh_token_file_path = token_path() + 'refresh_token'
@@ -271,6 +263,7 @@ def save_to_files(access_token, complete_days=True, start_date=None):
       dates_processed += 1
     else:
       break
+  print()
   return {'dates_processed':dates_processed, 'last_date_processed':last_date}
 
 # ========================================
