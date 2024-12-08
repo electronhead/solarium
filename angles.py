@@ -151,14 +151,17 @@ def retrieve_geocode(address):
 # and they display degrees; but do math with them, and you will find they are radians. 
 # This causes substantial confusion and makes code much more difficult to read, but 
 # can never be fixed without breaking programs that already use PyEphem.
-def compute_observer(address, elevation=100):
+def compute_observer(address, elevation):   #="2827 SE 49th Avenue, Portland, Oregon, US", elevation=62.1):
   o = ephem.Observer()
-  g = retrieve_geocode(address)
-  o.lon, o.lat, o.elevation, o.name = str(g.longitude), str(g.latitude), elevation, address
+  # for some reasone Nominatim is not working as of 4/10/2023
+  # hard-coded longitude and latitude for home address
+  o.lon, o.lat, o.elevation, o.name = str(-122.61232886437568), str(45.5021065), elevation, address
+  #g = retrieve_geocode(address)
+  #o.lon, o.lat, o.elevation, o.name = str(g.longitude), str(g.latitude), elevation, address
   return o
 
 def portland():
-  return compute_observer('Portland, Oregon', 100)
+  return compute_observer("2827 SE 49th Avenue, Portland, Oregon, US", 62.1)
 
 observer = portland
 

@@ -9,12 +9,21 @@ import pandas as pd
 import numpy as np
 import angles as a
 import base64
+import json
+
+# ========================================
+# environment variables
+#   [defined in ~/.profile]
+# ========================================
 
 def system_id():
   return os.environ['ENPHASE_SYSTEM_ID']
 
 def stats_path():
   return os.environ['ENPHASE_V4_STATS_PATH']
+
+def token_path():
+  return os.environ['ENPHASE_V4_TOKEN_PATH']
 
 def api_version():
   return os.environ['ENPHASE_V4_API_VERSION']
@@ -37,7 +46,15 @@ def encoded_client_secret():
   return str(encoded_bytes, "utf-8")
 
 def client_code():
-  return 'Qp8L7c'
+  with open(token_path() + 'access_token', 'r') as file:
+    return file.read().rstrip('\n')
+  #return 'WTLu7S'
+  #  return os.environ['ENPHASE_V4_CLIENT_CODE']
+
+def authorization_code():
+  with open(token_path() + 'authorization_code', 'r') as file:
+    return file.read().rstrip('\n')
+  #return 'WTLu7S'
   #  return os.environ['ENPHASE_V4_CLIENT_CODE']
 
 def print_environ():
@@ -48,15 +65,58 @@ def print_environ():
   print('ENPHASE_CLIENT_ID', client_id())
   print('ENPHASE_CLIENT_SECRET', client_secret())
   print('ENPHASE_ENCODED_CLIENT_SECRET', encoded_client_secret())
+  print('ENPHASE_CLIENT_CODE', client_code())
+  
+def refresh_token_exists():
+  refresh_token_file_path = token_path() + 'refresh_token'
+  return os.path.exists(refresh_token_file_path) and os.path.getsize(refresh_token_file_path) > 0
 
 # ========================================
 # request data from enphase
 #
+#   request_access_token
 #   request_tokens
+#   request_refresh_token
 #   request_stats
 # ========================================
 
-# request tokens (access and refresh tokens)
+def request_client_code():
+  cmd = f"https://api.enphaseenergy.com/oauth/authorize"
+  params = {
+    "response_type": "code",
+    "client_id": client_id(),
+    "redirect_uri": "https://api.enphaseenergy.com/oauth/redirect_uri"
+  }
+  response = requests.post(cmd, params = params)
+  return response
+
+# return access_token using two functions, request_tokens() and request_refresh_token
+# request_tokens() is the initial call that creates and populates the file, refresh_token, using a fresh
+#   authorization code
+# if the file, refresh_token, exists and its value is fresh enough relative to the authorizing authorization code,
+#   then the function will produce a valid refresh_token and the computation can proceed
+# if the authorization code contained in the file, authorization_code, is stale, the computation will fail, requiring
+#   another authorization step
+def request_access_token():
+  response = ''
+  if refresh_token_exists():
+    response = request_refresh_token()
+  else:
+    response = request_tokens()
+  if response.status_code == requests.codes.ok:
+    response_data = response.json()
+    access_token = response_data['access_token']
+    refresh_token = response_data['refresh_token']
+    with open(token_path() + 'access_token', 'w') as file:
+      file.write(access_token)
+    with open(token_path() + 'refresh_token', 'w') as file:
+      file.write(refresh_token)
+    return access_token
+  else:
+    print("\nrequest_access_token FAILURE:", response.json())
+    return None
+
+# request tokens (access and refresh tokens) 'grant_type': 'authorization_code'
 def request_tokens():
   cmd = 'https://api.enphaseenergy.com/oauth/token'
   headers = {
@@ -65,20 +125,39 @@ def request_tokens():
   params = {
     'grant_type': 'authorization_code',
     'redirect_uri': redirect_uri(),
-    'code': client_code()
+    'code': authorization_code()
   }
-  # print('token request data...\n')
-  # print({
-  #   'cmd': cmd,
-  #   'headers': headers,
-  #   'params': params
-  # })
   response = requests.post(
     cmd, 
     headers = headers, 
     params = params
   )
-  # print('\ntoken response data...\n')
+  # print('\nrequest_tokens response data...\n')
+  # print({
+  #   'response': response,
+  #   'response_json': response.json()
+  # })
+  return response
+
+# request tokens (access and refresh tokens) 'grant_type': 'refresh_token'
+# https://developer-v4.enphase.com/docs/quickstart.html#step_10
+def request_refresh_token():
+  with open(token_path() + 'refresh_token', 'r') as file:
+    unique_refresh_token = file.read().rstrip('\n')
+  cmd = f"https://api.enphaseenergy.com/oauth/token"
+  headers = {
+    'Authorization': f"Basic {encoded_client_secret()}"
+  }
+  params = {
+    'grant_type': 'refresh_token',
+    'refresh_token': unique_refresh_token
+  }
+  response = requests.post(
+    cmd, 
+    headers = headers, 
+    params = params
+  )
+  # print('\nrequest_refresh_token response data...\n')
   # print({
   #   'response': response,
   #   'response_json': response.json()
@@ -86,7 +165,6 @@ def request_tokens():
   return response
     
 # request stats for a provided date
-# rgm == revenue-grade meters
 def request_stats(adate, access_token):
   cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/telemetry/production_micro"
   headers = {
@@ -95,22 +173,29 @@ def request_stats(adate, access_token):
   params = {
     'key': api_key()
   }
-  start_date_string = adate.strftime("%Y-%m-%d")
+  #start_date_string = adate.strftime("%Y-%m-%d")
+  #payload = {
+  #  'start_date': start_date_string, # instead of start_at int
+  #  'granularity': '5mins' # 'week', 'day', '15mins', '5mins'. Default is 'day'
+  #}
+  start_at = int(_time.mktime(adate.timetuple()))
   payload = {
-    'start_date': start_date_string, # instead of start_at int
-    'granularity': 'day' # 'week', 'day', '15mins', '5mins'. Default is 'day'
+    'start_at': start_at, 
+    'granularity': '5mins' # 'week', 'day', '15mins', '5mins'. Default is 'day'
   }
+  print(f"\npayload{payload}")
   response = requests.get(
     cmd, 
     params = params, 
     headers = headers, 
     data = payload
   )
-  # print('\nstats response data...\n')
-  # print({
-  #   'response': response,
-  #   'response_json': response.json()
-  # })
+  if False:
+    print('\nstats response data...\n')
+    print({
+      'response': response,
+      'response_json': response.json()
+    })
   return response
     
 # ========================================
@@ -136,6 +221,7 @@ def convert_interval_to_row(interval):
   end_at_int = interval['end_at']
   # https://stackoverflow.com/questions/2150739/iso-time-iso-8601-in-python
   end_at_string = datetime.fromtimestamp(end_at_int).astimezone().replace(microsecond=0).isoformat()
+  #print(f"interval: {interval} end_at_int: {end_at_int} end_at_string: {end_at_string}")
   powr = interval['powr']
   enwh = interval['enwh']
   return [end_at_string, powr, enwh]
@@ -152,30 +238,26 @@ def save_to_file(adate, access_token):
     return False
   else:
     rows = sorted(convert_intervals_to_rows(stats_data), key = lambda row: row[0])
+    #rows = [row for row in rows if (row[1]>0 or row[2]>0)]
     adate_str = adate.strftime("%Y-%m-%d")
     new_file_name = stats_path() + f"stats_{adate_str}.csv"
     with open(new_file_name, 'w') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
+      print(rows[0])
+      print(adate)
       for row in rows:
+        #print(row)
         writer.writerow(row)
-    #print(new_file_name)
     print("SUCCESS:", len(rows), "rows written to ", new_file_name)
     return True
 
 # save to csv files
+# access_token
 # start_date: overwrite forward from start_date or last date in files if earlier
 # complete_days:
 #     True: ignore data for today, which may not represent the whole day
 #     False: save today's data
-def save_to_files(complete_days=True, start_date=None):
-  token_response = request_tokens()
-  token_data = token_response.json()
-  if token_response.status_code != requests.codes.ok:
-    print("\nTOKEN RESPONSE:", token_response)
-    print("\nTOKEN JSON:", token_data)
-    return token_response
-  access_token = token_data['access_token']
-
+def save_to_files(access_token, complete_days=True, start_date=None):
   dates_processed = 0
   next_date = compute_next_date()
   last_date = None
