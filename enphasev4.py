@@ -72,6 +72,7 @@ def refresh_token_exists():
 #   request_stats
 # ========================================
 
+# not used
 def request_client_code():
   cmd = f"https://api.enphaseenergy.com/oauth/authorize"
   params = {
@@ -81,7 +82,7 @@ def request_client_code():
   }
   response = requests.post(cmd, params = params)
   return response
-
+  
 # return access_token using two functions, request_tokens() and request_refresh_token
 # request_tokens() is the initial call that creates and populates the file, refresh_token, using a fresh
 #   authorization code
@@ -158,36 +159,51 @@ def request_refresh_token():
     
 # request stats for a provided date
 def request_stats(adate, access_token):
+  
   cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/telemetry/production_micro"
+  
   headers = {
     'Authorization': f"Bearer {access_token}"
+  }
+  
+  start_date_string = adate.strftime("%Y-%m-%d")
+  start_at = int(_time.mktime(adate.timetuple()))
+  
+  params = {
+    'key': api_key(),
+    'start_date': start_date_string,
+    'granularity': 'day' # 'week', 'day', '15mins', '5mins'. Default is 'day'
+  }
+  
+  response = requests.get(
+    cmd, 
+    params = params, 
+    headers = headers
+  )
+  
+  if False:
+    print('\nstats response data...\n')
+    print({
+      'params': params,
+      'response': response,
+      'response_json': response.json()
+    })
+    
+  return response
+
+def request_summary(access_token):
+  cmd = f"https://api.enphaseenergy.com/api/{api_version()}/systems/{system_id()}/summary"
+  headers = {
+    'Authorization': f"Basic {access_token}"
   }
   params = {
     'key': api_key()
   }
-  #start_date_string = adate.strftime("%Y-%m-%d")
-  #payload = {
-  #  'start_date': start_date_string, # instead of start_at int
-  #  'granularity': '5mins' # 'week', 'day', '15mins', '5mins'. Default is 'day'
-  #}
-  start_at = int(_time.mktime(adate.timetuple()))
-  payload = {
-    'start_at': start_at, 
-    'granularity': '5mins' # 'week', 'day', '15mins', '5mins'. Default is 'day'
-  }
-  print(f"\npayload{payload}")
   response = requests.get(
-    cmd, 
-    params = params, 
-    headers = headers, 
-    data = payload
+    cmd,
+    headers = headers,
+    params = params
   )
-  if False:
-    print('\nstats response data...\n')
-    print({
-      'response': response,
-      'response_json': response.json()
-    })
   return response
     
 # ========================================
@@ -213,7 +229,6 @@ def convert_interval_to_row(interval):
   end_at_int = interval['end_at']
   # https://stackoverflow.com/questions/2150739/iso-time-iso-8601-in-python
   end_at_string = datetime.fromtimestamp(end_at_int).astimezone().replace(microsecond=0).isoformat()
-  #print(f"interval: {interval} end_at_int: {end_at_int} end_at_string: {end_at_string}")
   powr = interval['powr']
   enwh = interval['enwh']
   return [end_at_string, powr, enwh]
@@ -230,15 +245,12 @@ def save_to_file(adate, access_token):
     return False
   else:
     rows = sorted(convert_intervals_to_rows(stats_data), key = lambda row: row[0])
-    #rows = [row for row in rows if (row[1]>0 or row[2]>0)]
+    rows = [row for row in rows if (row[1]>0 or row[2]>0)]
     adate_str = adate.strftime("%Y-%m-%d")
     new_file_name = stats_path() + f"stats_{adate_str}.csv"
     with open(new_file_name, 'w') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
-      print(rows[0])
-      print(adate)
       for row in rows:
-        #print(row)
         writer.writerow(row)
     print("SUCCESS:", len(rows), "rows written to ", new_file_name)
     return True
